@@ -17,7 +17,7 @@ class loadStage:
         self.wt = loadmat('Stage/wt_axisStage.mat')['wt_axis'][:,0]
         self.tau = loadmat('Stage/wtau_axis_Stage.mat')['tau_axis'][0,:]
 
-class loadShaper(loadStage):
+class loadShaper:
     def __init__(self):
         self.T = loadmat('Shaper/T_axisShaper.mat')['T_axis'][0,:]
         self.data = loadmat('Shaper/DataShaper.mat')['threeDmatrix']
@@ -25,21 +25,45 @@ class loadShaper(loadStage):
         self.wt = loadmat('Shaper/wt_axis_Shaper.mat')['wt_axis'][:,0]
         self.tau = loadmat('Shaper/tau_axis_Shaper.mat')['tau_axis'][0,:]
 
-class loadDSQBC2(loadStage):
+class loadDSQBC2:
     def __init__(self):
         self.data = loadmat('dSQBC2/2_16_05_07_dSQBC_Matrix_PowerCy_1_KM_MA_4StepsLin.mat')['Matrix_twoD']
         self.tau = loadmat('dSQBC2/2_tau_axis.mat')['tau_axis'][0,:]
         self.wt = loadmat('dSQBC2/2_wt_axis.mat')['wt_axis'][:,0]
         self.Is = np.array([5,4,3,2,0.3])
 
-class loadDSQBC1(loadStage):
+class loadDSQBC1:
     def __init__(self):
         self.data = loadmat('dSQBC1/1-16_05_03_dSQBC_Matrix_PowerCy_1_KM_MA_4StepsLin.mat')['Matrix_twoD']
         self.tau = loadmat('dSQBC1/1-tau_axis.mat')['tau_axis'][0,:]
         self.wt = loadmat('dSQBC1/1-wt_axis.mat')['wt_axis'][:,0]
         self.Is = np.array([4.2,3.2,2.2,1.2,0.3])
 
-loader_dictionary = {'Stage':loadStage,'Shaper':loadShaper,'dSQBC1':loadDSQBC1,'dSQBC2':loadDSQBC2}
+class loadDSQBC3:
+    def __init__(self):
+        self.data = loadmat('dSQBC3/24_05_23_173_dSQBC_Matrix_PowerCy_1_KM_MA_4StepsLin.mat')['Matrix_twoD']
+        self.tau = loadmat('dSQBC3/tau_axis_24_05_23_17.mat')['tau_axis'][0,:]
+        self.wt = loadmat('dSQBC3/wt_axis_24_05_23_17.mat')['wt_axis'][:,0]
+        self.Is = np.array([6,5,4,3,1.5])
+
+class loadDSQBC123:
+    def __init__(self):
+        l1 = loadDSQBC1()
+        l2 = loadDSQBC2()
+        l3 = loadDSQBC3()
+        self.Is = np.concatenate((np.array([0.3]),l1.Is[:-1],l2.Is[:-1],l3.Is))
+        data_low = (l1.data[:,0:1,:] + l2.data[:,0:1,:])/2
+        print(data_low.shape)
+        self.data = np.concatenate((data_low,l1.data[:,:-1,:], 
+                                    l2.data[:,:-1,:], l3.data),axis=1)
+        sort_inds = self.Is.argsort()[::-1]
+        self.Is = self.Is[sort_inds]
+        self.data = self.data[:,sort_inds,:]
+        self.tau = l1.tau
+        self.wt = l1.wt
+
+loader_dictionary = {'Stage':loadStage,'Shaper':loadShaper,'dSQBC1':loadDSQBC1,
+                     'dSQBC2':loadDSQBC2,'dSQBC3':loadDSQBC3,'dSQBC123':loadDSQBC123}
 
 class visualize:
     hbar =  6.582119E-1
@@ -207,7 +231,7 @@ class visualize:
             fig, ax = plt.subplots()
         ax.plot(x,y,'-o')
         ax.set_xlabel(xlabel)
-        ax.set_title(r'$\hbar\omega_t =$ {0:.2f}, I = {1:.0f} $\mu$W'.format(wt, self.all_Is[I_index]))
+        ax.set_title(r'$\hbar\omega_t =$ {0:.2f}, I = {1:.1f} $\mu$W'.format(wt, self.all_Is[I_index]))
 
     def get_region(self,region):
         return self.get_region_function(self.data_ft,region)
@@ -254,7 +278,7 @@ class visualize:
             region = self.region_1Q
         x,y,z = self.get_region(region)
         ufss.signals.plot2D(x,y,z[...,I_index],part='real')
-        plt.title('I = {:.0f} $\mu$W'.format(self.all_Is[I_index]))
+        plt.title('I = {:.1f} $\mu$W'.format(self.all_Is[I_index]))
 
     def plot_2Q(self,I_index,*,region='default',vmax='max'):
         if region == 'default':
