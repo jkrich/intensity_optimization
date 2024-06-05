@@ -62,8 +62,21 @@ class loadDSQBC123:
         self.tau = l1.tau
         self.wt = l1.wt
 
+class loadDSQBC4:
+    '''Data from 2024_05_31 on dSQBC'''
+    def __init__(self):
+        self.data = loadmat('dSQBC4/24_05_31_03_dSQBC_Matrix_PowerCy_1_KM_MA.mat')['Matrix_twoD']
+        self.tau = loadmat( 'dSQBC4/tau_axis310503.mat')['tau_axis'][0,:]
+        self.wt = loadmat(   'dSQBC4/wt_axis_310503.mat')['wt_axis'][:,0]
+        #I_steps_310503.txt is a csv text file with the pulse power values. Read it in and store values in self.Is
+        with open('dSQBC4/I_steps_310503.txt','r') as f:
+            self.Is = np.array([float(x) for x in f.read().split(',')])
+        # self.Is = np.array([6,5,4,3,1.5])
+
+
 loader_dictionary = {'Stage':loadStage,'Shaper':loadShaper,'dSQBC1':loadDSQBC1,
-                     'dSQBC2':loadDSQBC2,'dSQBC3':loadDSQBC3,'dSQBC123':loadDSQBC123}
+                     'dSQBC2':loadDSQBC2,'dSQBC3':loadDSQBC3,'dSQBC123':loadDSQBC123,
+                     'dSQBC4':loadDSQBC4}
 
 class visualize:
     hbar =  6.582119E-1
