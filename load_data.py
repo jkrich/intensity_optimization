@@ -60,7 +60,7 @@ class loadDSQBC123:
         self.Is = self.Is[sort_inds]
         self.data = self.data[:,sort_inds,:]
         self.tau = l1.tau
-        self.wt = l1.wt
+        self.wt = l1.wt        
 
 class loadDSQBC4:
     '''Data from 2024_05_31 on dSQBC'''
@@ -72,6 +72,7 @@ class loadDSQBC4:
         with open('dSQBC4/I_steps_310503.txt','r') as f:
             self.Is = np.array([float(x) for x in f.read().split(',')])
         # self.Is = np.array([6,5,4,3,1.5])
+        self.name = 'dSQBC20240531'
 
 
 loader_dictionary = {'Stage':loadStage,'Shaper':loadShaper,'dSQBC1':loadDSQBC1,
@@ -153,6 +154,9 @@ class visualize:
         plt.title('I = {:.0f} $\mu$W'.format(self.all_Is[I_index]))
 
     def savefig(self,filename):
+        #Create the directories required
+        if not os.path.exists(self.savedir):
+            os.makedirs(self.savedir)            
         plt.savefig(os.path.join(self.savedir,filename))
 
     def plot_offset_removal(self,I_index):
@@ -668,6 +672,12 @@ class modifiedSeparateOrders(SeparateOrders):
             for j in range(N):
                 ufss.signals.plot2D(x,y,z[...,j],part='real',fig=fig,ax=axes[j][i])
                 axes[j][i].text(0.05,0.85,'$S^{('+'{}'.format(str(2*j+3)) + ')}$',transform=axes[j][i].transAxes)
+        #Add a supertitle to indicate what intensities were used        
+        title_text = self.name if hasattr(self,'name') else ''
+        title_text += " fit" if fit else " VdM"
+        title_text += f' Intensities: {self.Is}'
+        fig.suptitle(title_text)
+        return fig, axes
 
     def plot_fit_orders(self,region = 'default'):
         if region == 'default':
