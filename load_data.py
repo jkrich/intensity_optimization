@@ -74,10 +74,22 @@ class loadDSQBC4:
         # self.Is = np.array([6,5,4,3,1.5])
         self.name = 'dSQBC20240531'
 
+class loadDSQBC_50kHz:
+    '''Data from 2024_06_12 on dSQBC at 50 kHz'''
+    def __init__(self):
+        root = '/Users/jacob/Dropbox/Research/NLO/raw_data_dSQBC_12_06_24-08/'
+        self.data = loadmat(root + '24_06_12_08_dSQBC_Matrix_PowerCy_1_KM_RZ_SB.mat')['Matrix_twoD']
+        self.tau = loadmat( root + 'tau_axis.mat')['tau_axis'][0,:]
+        self.wt = loadmat(  root + 'wt_axis.mat')['wt_axis'][:,0]
+        #I_steps_310503.txt is a csv text file with the pulse power values. Read it in and store values in self.Is
+        with open(root + 'Powers_12_06_24-08.txt','r') as f:
+            self.Is = np.array([float(x) for x in f.read().split(',')])
+        # self.Is = np.array([6,5,4,3,1.5])
+        self.name = 'dSQBC_50kHz'
 
 loader_dictionary = {'Stage':loadStage,'Shaper':loadShaper,'dSQBC1':loadDSQBC1,
                      'dSQBC2':loadDSQBC2,'dSQBC3':loadDSQBC3,'dSQBC123':loadDSQBC123,
-                     'dSQBC4':loadDSQBC4}
+                     'dSQBC4':loadDSQBC4, 'dSQBC_50kHz':loadDSQBC_50kHz}
 
 class visualize:
     hbar =  6.582119E-1
@@ -290,11 +302,11 @@ class visualize:
         plt.plot([xa,xb],[ya,ya],color)
         plt.plot([xa,xb],[yb,yb],color)
 
-    def plot_1Q(self,I_index,*,region='default'):
+    def plot_1Q(self,I_index,*,region='default',ax=None,fig=None):
         if region == 'default':
             region = self.region_1Q
         x,y,z = self.get_region(region)
-        ufss.signals.plot2D(x,y,z[...,I_index],part='real')
+        ufss.signals.plot2D(x,y,z[...,I_index],part='real',ax=ax,fig=fig)
         plt.title('I = {:.1f} $\mu$W'.format(self.all_Is[I_index]))
 
     def plot_2Q(self,I_index,*,region='default',vmax='max'):
@@ -524,14 +536,18 @@ class visualize:
         wt_ind = np.argmin(np.abs(y-wt))
         wt = y[wt_ind] * self.hbar
         x = self.all_Is
-        for i in range(len(z_list)):
-            z = z_list[i][wt_ind,:]
-            plt.figure()
+        num_z = len(z_list)
+        fig, axs = plt.subplots(num_z,1,sharex=True)
+        for i in range(num_z):
+            a = axs[i]
+            z = z_list[i][wt_ind,:]            
             popt, pcov = self.bessel_sat_curve(i,z)
-            plt.plot(x,z)
+            a.plot(x,z,marker='o')
             f = self.get_nQ_bessel_model(i)
-            plt.plot(x,f(x,*popt))
+            a.plot(x,f(x,*popt))            
             print(popt)
+        a.set_xlabel('I')
+        fig.suptitle('$\omega_t$ = {:.2f}'.format(wt))
 
     def fit_TA_plot_nQ_vs_I(self,wt):
         self.fit_TA_sat_curve(wt=wt)
