@@ -307,7 +307,10 @@ class visualize:
             region = self.region_1Q
         x,y,z = self.get_region(region)
         ufss.signals.plot2D(x,y,z[...,I_index],part='real',ax=ax,fig=fig)
-        plt.title('I = {:.1f} $\mu$W'.format(self.all_Is[I_index]))
+        plt.title('I = {:.0f} $\mu$W'.format(self.all_Is[I_index]))
+        plt.xlabel(r'$\omega_\tau$ (eV)')
+        plt.ylabel('Detection Frequency (eV)')
+        plt.tight_layout()
 
     def plot_2Q(self,I_index,*,region='default',vmax='max'):
         if region == 'default':

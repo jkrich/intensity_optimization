@@ -184,16 +184,6 @@ def linear_sampling(I0,N):
     Is = intensity_cycling(I0,N)
     return np.linspace(Is[0],Is[-1],num=N)
 
-# def minimum_random_error_sampling(I0,N):
-#     mrn = MinimzeRandomNoise(N)
-#     Is = mrn.minimize_average_noise()*I0
-#     return Is
-
-# def minimum_contamination_sampling(I0,N):
-#     mse = MinimzeSystematicError(N)
-#     Is = mse.minimize_average_contamination()*I0
-#     return Is
-
 def chebyshev_sampling(I0,N):
     pts = np.polynomial.chebyshev.chebpts1(N)
     pts = pts + 1
@@ -205,143 +195,6 @@ intensity_dict = {'Intensity Cycling':intensity_cycling,
                  'Linear Sampling':linear_sampling,
                  'Chebyshev':chebyshev_sampling}
 
-class Optimize_I0_and_N(SeparateOrders):
-    def __init__(self,f,f_series,noise,*,
-                 intensity_sampling='Intensity Cycling'):
-        self.f = f
-        self.f_series = f_series
-        self.noise_floor = noise
-        self.intensity_sampling = intensity_sampling
-        self.set_number_of_noise_realizations(1)
-        self.sys_weight = 1
-
-    def extract_orders(self,I0,N):
-        int_fun = intensity_dict[self.intensity_sampling]
-        intensities = int_fun(I0,N)
-        self.set_intensities(intensities)
-        self.I0 = I0
-        self.eval_intensities()
-        self.add_noise(self.noise_floor)
-        self.invert()
-
-        ext_orders = self.f_orders[:self.num]
-        return ext_orders
-
-    def extract_orders2(self,intensities):
-        I0 = np.mean(intensities)
-        self.set_intensities(intensities)
-        self.I0 = I0
-        self.eval_intensities()
-        self.add_noise(self.noise_floor)
-        self.invert()
-
-    def set_number_of_noise_realizations(self,num_realizations):
-        self.num_realizations = num_realizations
-
-    def set_differences(self,I0,N):
-        true_orders = np.array([self.f_series(n,I0)
-                                for n in range(1,self.num+1)])
-        
-        ext_orders = self.extract_orders(I0,N)
-        self.abs_diffs = np.abs(ext_orders - true_orders)
-        for i in range(self.num_realizations-1):
-            ext_orders = self.extract_orders(I0,N)
-            diffs = np.abs(ext_orders - true_orders)
-            self.abs_diffs += diffs
-        self.abs_diffs /= self.num_realizations
-        self.rel_diffs = self.abs_diffs/np.abs(true_orders)
-
-    def get_abs_and_rel_error(self,I0,N):
-        if (type(I0) is list) or (type(I0) is np.ndarray):
-            I0 = I0[0]
-        I0 = np.abs(I0)
-        self.set_differences(I0,N)
-        abs_av = np.sqrt(np.sum(self.abs_diffs**2))
-        rel_av = np.sqrt(np.sum(self.rel_diffs**2))
-
-        return abs_av, rel_av
-
-    def get_average_diffs(self,I0,N):
-        abs_av, rel_av = self.get_abs_and_rel_error(I0,N)
-        
-        return (abs_av/100 + rel_av)
-
-    def print_relative_errors(self,I0,N):
-        true_orders = np.array([self.f_series(n,I0)
-                                for n in range(1,N+1)])
-        self.extract_orders(I0,N)
-        ext = np.real(self.f_orders)
-        # print('Correct orders',np.round(true_orders,5))
-        # print('Extracted orders',np.round(ext,5))
-        # print('Relative deviation',np.round((ext - true_orders)/true_orders,3))
-        
-        re = self.noise_by_order/np.abs(true_orders)
-        se = np.abs(true_orders - self.f_orders_no_noise)/np.abs(true_orders)
-        print('Relative random error',np.round(re,5),
-              '\n','Relative systematic error',np.round(se,5))
-
-    def get_random_and_systematic_error_arrays(self,I0,N):
-        if (type(I0) is list) or (type(I0) is np.ndarray):
-            I0 = I0[0]
-        I0 = np.abs(I0)
-        true_orders = np.array([self.f_series(n,I0)
-                                for n in range(1,self.num+1)])
-        # print(true_orders)
-        self.extract_orders(I0,N)
-        re = np.abs(self.noise_by_order[:self.num]/true_orders)
-        se = np.abs((true_orders - self.f_orders_no_noise[:self.num])/true_orders)
-        return re, se
-
-    def get_random_and_systematic_errors(self,I0,N):
-        re, se = self.get_random_and_systematic_error_arrays(I0,N)
-        re_av = np.sqrt(np.sum(re**2))
-        se_av = np.sqrt(np.sum(se**2))
-        return re_av, se_av
-        
-    def get_total_error(self,I0,N):
-        re_av, se_av = self.get_random_and_systematic_errors(I0,N)
-        w = self.sys_weight
-        return np.sqrt(re_av**2 + w**2 * se_av**2)
-
-    def minimize_errors_single_N(self,number_of_orders,N):
-        self.num = number_of_orders
-        if N < self.num:
-            raise Exception('Cannot extract more orders than intensities')
-        f = lambda x: self.get_total_error(x,N)
-        x0 = 1
-        res = minimize(f,x0,method='Powell',bounds=[(1E-15,20)])
-        I0 = np.abs(res.x)
-        r_err, s_err = self.get_random_and_systematic_errors(I0,N)
-        rms_err = np.sqrt(s_err**2+r_err**2)
-        return I0, r_err, s_err, rms_err
-
-    def minimize_errors(self,number_of_orders,*,max_additional_points = 4):
-        num = number_of_orders
-        for N in range(num,num+max_additional_points+1):
-            I0, r_err, s_err, rms_err = self.minimize_errors_single_N(num,N)
-            print('Intensities:',np.round(self.Is,2),', sys err={:.2e}, rand err={:.2e}, RMS err={:.2e}'.format(s_err,r_err,rms_err))
-    # 
-    #     self.num = number_of_orders
-    #     
-    #         f = lambda x: self.get_total_error(x,N)
-    #         x0 = 1
-    #         res = minimize(f,x0,method='Powell',bounds=[(0.1,20)])
-    #         I0 = np.abs(res.x)
-    #         r_err, s_err = self.get_random_and_systematic_errors(I0,N)
-    #         rms_err = np.sqrt(s_err**2+r_err**2)
-    #         print('Intensities:',np.round(self.Is,2),', sys err={:.3f}, rand err={:.3f}, RMS err={:.3f}'.format(s_err,r_err,rms_err))
-    #         # print('N = {}, I0 = {}, systematic error = {:.4f}, random error = {:.4f}'.format(N,I0,s_err,r_err))
-
-    def minimize_diffs(self,number_of_orders):
-        self.num = number_of_orders
-        for N in range(self.num,self.num+10):
-            f = lambda x: self.get_average_diffs(x,N)
-            x0 = 1
-            res = minimize(f,x0,method='Nelder-Mead')
-            I0 = np.abs(res.x)
-            abs_av, rel_av = self.get_abs_and_rel_error(I0,N)
-            print('N = {}, I0 = {}, abs err = {}, rel err = {}'.format(N,I0,abs_av,rel_av))
-
 class OptimizeIntensities(SeparateOrders):
     def __init__(self,f,f_series,noise):
         self.f = f
@@ -351,12 +204,15 @@ class OptimizeIntensities(SeparateOrders):
         self.sys_weight = 1
 
     def extract_orders(self,intensities):
-        I0 = np.mean(intensities)
+        I0 = np.mean(intensities)/10
         self.set_intensities(intensities)
         self.I0 = I0
         self.eval_intensities()
         self.add_noise(self.noise_floor)
         self.invert()
+
+        ext_orders = self.f_orders[:self.num]
+        return ext_orders
 
     def set_number_of_noise_realizations(self,num_realizations):
         self.num_realizations = num_realizations
@@ -368,11 +224,14 @@ class OptimizeIntensities(SeparateOrders):
         
         self.abs_diffs = np.abs(ext_orders - true_orders)
         for i in range(self.num_realizations-1):
-            ext_orders = self.extract_orders(I0,N)
+            ext_orders = self.extract_orders(intensities)
             diffs = np.abs(ext_orders - true_orders)
             self.abs_diffs += diffs
         self.abs_diffs /= self.num_realizations
-        self.rel_diffs = self.abs_diffs/np.abs(true_orders)
+        denominator = true_orders.copy()
+        zero_inds = np.where(np.isclose(denominator,0,atol=1E-12))
+        denominator[zero_inds] = 1
+        self.rel_diffs = self.abs_diffs/np.abs(denominator)
 
     def get_abs_and_rel_error(self,intensities):
         intensities = np.abs(intensities)
@@ -386,54 +245,79 @@ class OptimizeIntensities(SeparateOrders):
         abs_av, rel_av = self.get_abs_and_rel_error(intensities)
         
         return (abs_av/100 + rel_av)
+    
+    def get_true_orders(self):
+        true_orders = np.zeros(self.f_orders.shape,dtype=self.f_orders.dtype)
+        for n in range(1,self.Is.size+1):
+            true_orders[...,n-1] = self.f_series(n,self.I0)
+        return true_orders
+    
+    def get_random_and_systematic_error_arrays(self,intensities):
+        self.extract_orders(intensities)
+        true_orders = self.get_true_orders()[...,:self.num]
+        denominator = np.abs(true_orders.copy())**2
+        while len(denominator.shape) > 1:
+            denominator = np.sum(denominator,axis=0)
+        denominator = np.sqrt(denominator)
+        zero_inds = np.where(np.isclose(denominator,0,atol=1E-12))
+        denominator[zero_inds] = 1
+        re = np.abs(self.noise_by_order[:self.num]*np.sqrt(true_orders[...,0].size)/denominator)
+        se = np.abs((true_orders - self.f_orders_no_noise[...,:self.num])/denominator)**2
+        while len(se.shape) > 1:
+            se = np.sum(se,axis=0)
+        se = np.sqrt(se)
+        return re, se
 
     def print_relative_errors(self,intensities):
-        ext_orders = self.extract_orders(intensities)
-        true_orders = np.array([self.f_series(n,self.I0)
-                                for n in range(1,self.num+1)])
-        ext = np.real(self.f_orders)
-        # print('Correct orders',np.round(true_orders,5))
-        # print('Extracted orders',np.round(ext,5))
-        # print('Relative deviation',np.round((ext - true_orders)/true_orders,3))
-        
-        re = self.noise_by_order/np.abs(true_orders)
-        se = np.abs(true_orders - self.f_orders_no_noise)/np.abs(true_orders)
-        print('Relative random error',np.round(re,5),
-              '\n','Relative systematic error',np.round(se,5))
+        re, se = self.get_random_and_systematic_error_arrays(intensities)
+        print('Relative random error for each order',np.round(re,5),
+              '\n','Relative systematic error for each order',np.round(se,5))
 
     def get_random_and_systematic_errors(self,intensities):
-        intensities = np.abs(intensities)
-        self.extract_orders(intensities)
-        true_orders = np.array([self.f_series(n,self.I0)
-                                for n in range(1,self.num+1)])
-        # print(true_orders)
-        
-        # print(self.noise_by_order)
-        # print('f orders',self.f_orders_no_noise[:self.num])
-        # print('noise by order',self.noise_by_order[:self.num])
-        re = np.abs(self.noise_by_order[:self.num]/true_orders)
-        # print('random error',re)
-        se = np.abs((true_orders - self.f_orders_no_noise[:self.num])/true_orders)
-        # print(se)
+        """Get total random and systematic errors, separately, for the orders of interest"""
+        re, se = self.get_random_and_systematic_error_arrays(intensities)
         re_av = np.sqrt(np.sum(re**2))
         se_av = np.sqrt(np.sum(se**2))
         return re_av, se_av
         
     def get_total_error(self,intensities):
+        """Sum random and systamic errors for all orders of interest, including a weight factor
+        that is set to 1 by default in the constructor of the class"""
         re_av, se_av = self.get_random_and_systematic_errors(intensities)
         w = self.sys_weight
         return np.sqrt(re_av**2 + w**2 * se_av**2)
 
-    def minimize_errors_single_N(self,number_of_orders,N):
+    def minimize_errors_single_N(self,number_of_orders,N,intensity_selection='any',bounds=[[1E-15,2],]):
+        """Minimize random and systematic errors for the Vandermonde inversion procedure.
+        Args:
+            number_of_orders (int) : number of orders for which you wish to minimize the error <= N
+            N (int) : number of intensities to use
+        Kwargs:
+            intensity_selection : 'any' runs a Nelder-Mead optimization over all N intensity values. three
+                other options run a 1D optimization over I_0, which determines all N intensity values via
+                the three sampling strategies included in intensity_dict, defined above this class. The 
+                options are : 'Linear Sampling', 'Intensity Cycling' and 'Chebyshev'.
+            bounds : bounds for I_0 for the 1D optimization procedure. This is ignored if intensity_selection
+                is 'any'
+        """
         self.num = number_of_orders
         if N < self.num:
             raise Exception('Cannot extract more orders than intensities')
-        f = self.get_total_error
-        x0 = np.arange(1,N+1)/N
-        res = minimize(f,x0,method='Nelder-Mead')#,bounds=[(0.01,100)]*N)
-        intensities = np.abs(res.x)
-        intensities.sort()
-        r_err, s_err = self.get_random_and_systematic_errors(intensities )
+        if intensity_selection == 'any':
+            f = self.get_total_error
+            x0 = np.arange(1,N+1)/N/4
+            res = minimize(f,x0,method='Nelder-Mead')
+            intensities = np.abs(res.x)
+            intensities.sort()
+        else:
+            def f(I):
+                intensities = intensity_dict[intensity_selection](I,N)
+                return self.get_total_error(intensities)
+            x0 = 1
+            res = minimize(f,x0,method='Powell',bounds = bounds)
+            intensities = intensity_cycling(res.x,N)
+        print(intensities)
+        r_err, s_err = self.get_random_and_systematic_errors(intensities)
         rms_err = np.sqrt(s_err**2+r_err**2)
         return intensities, r_err, s_err, rms_err
 
