@@ -85,6 +85,7 @@ class SeparateOrders:
     def invert(self):
         sz = self.Is.size
         V = np.zeros((sz,sz))
+        print(f"I0 ={self.I0:0.2f}")
         for i in range(sz):
             V[:,i] = (self.Is/self.I0)**(i+1)
 

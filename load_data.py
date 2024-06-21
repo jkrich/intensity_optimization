@@ -303,6 +303,10 @@ class visualize:
         plt.plot([xa,xb],[yb,yb],color)
 
     def plot_1Q(self,I_index,*,region='default',ax=None,fig=None):
+        '''
+        Despite its name, this method is designed to plot the 2D data at specified I_index.
+        If region is unspecified, it will plot the self.region_1Q region.
+        '''
         if region == 'default':
             region = self.region_1Q
         x,y,z = self.get_region(region)
@@ -395,7 +399,7 @@ class visualize:
         if not integrated:
             plt.title('Peak at ({:.2f},{:.2f})'.format(x,y))
         else:
-            plt.title('Integrated 1Q region')
+            plt.title('Integrated')
 
     # def plot_2Q_vs_I(self,*,region='default'):
     #     if region == 'default':
@@ -411,6 +415,10 @@ class visualize:
     #     plt.xlabel('Pulse Power ($\mu$W)')
 
     def get_peak(self,region):
+        '''
+        Find the largest amplitude feature in the region, 
+        using the last intensity (usually the highest).
+        Return the x,y,z values at the peak, where z has length of all the intensities.'''
         x,y,z = self.get_region(region)
         ind = np.unravel_index(np.argmax(np.abs(z[:,:,-1])),z.shape[:-1])
         z = z[ind[0],ind[1],:]
