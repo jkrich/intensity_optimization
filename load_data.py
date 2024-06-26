@@ -10,40 +10,40 @@ import ufss
 from order_separation import SeparateOrders
 
 class loadStage:
-    def __init__(self):
-        self.T = loadmat('Stage/T_axis_Stage.mat')['T_axis'][0,:]
-        self.data = loadmat('Stage/DataStage.mat')['threeDmatrix']
-        self.Is = loadmat('Stage/I_Stage.mat')['I_Stage'][0,:]
-        self.wt = loadmat('Stage/wt_axisStage.mat')['wt_axis'][:,0]
-        self.tau = loadmat('Stage/wtau_axis_Stage.mat')['tau_axis'][0,:]
+    def __init__(self,*,root='Stage'):
+        self.T = loadmat(os.path.join(root,'T_axis_Stage.mat'))['T_axis'][0,:]
+        self.data = loadmat(os.path.join(root,'DataStage.mat'))['threeDmatrix']
+        self.Is = loadmat(os.path.join(root,'Stage/I_Stage.mat'))['I_Stage'][0,:]
+        self.wt = loadmat(os.path.join(root,'wt_axisStage.mat'))['wt_axis'][:,0]
+        self.tau = loadmat(os.path.join(root,'wtau_axis_Stage.mat'))['tau_axis'][0,:]
 
 class loadShaper:
-    def __init__(self):
-        self.T = loadmat('Shaper/T_axisShaper.mat')['T_axis'][0,:]
-        self.data = loadmat('Shaper/DataShaper.mat')['threeDmatrix']
-        self.Is = loadmat('Shaper/I_Shaper.mat')['I_Shaper'][0,:]
-        self.wt = loadmat('Shaper/wt_axis_Shaper.mat')['wt_axis'][:,0]
-        self.tau = loadmat('Shaper/tau_axis_Shaper.mat')['tau_axis'][0,:]
+    def __init__(self,*,root='Shaper'):
+        self.T = loadmat(os.path.join(root,'T_axisShaper.mat'))['T_axis'][0,:]
+        self.data = loadmat(os.path.join(root,'DataShaper.mat'))['threeDmatrix']
+        self.Is = loadmat(os.path.join(root,'I_Shaper.mat'))['I_Shaper'][0,:]
+        self.wt = loadmat(os.path.join(root,'wt_axis_Shaper.mat'))['wt_axis'][:,0]
+        self.tau = loadmat(os.path.join(root,'tau_axis_Shaper.mat'))['tau_axis'][0,:]
 
 class loadDSQBC2:
-    def __init__(self):
-        self.data = loadmat('dSQBC2/2_16_05_07_dSQBC_Matrix_PowerCy_1_KM_MA_4StepsLin.mat')['Matrix_twoD']
-        self.tau = loadmat('dSQBC2/2_tau_axis.mat')['tau_axis'][0,:]
-        self.wt = loadmat('dSQBC2/2_wt_axis.mat')['wt_axis'][:,0]
+    def __init__(self,*,root='dSQBC2'):
+        self.data = loadmat(os.path.join(root,'2_16_05_07_dSQBC_Matrix_PowerCy_1_KM_MA_4StepsLin.mat'))['Matrix_twoD']
+        self.tau = loadmat(os.path.join(root,'dSQBC2/2_tau_axis.mat'))['tau_axis'][0,:]
+        self.wt = loadmat(os.path.join(root,'dSQBC2/2_wt_axis.mat'))['wt_axis'][:,0]
         self.Is = np.array([5,4,3,2,0.3])
 
 class loadDSQBC1:
-    def __init__(self):
-        self.data = loadmat('dSQBC1/1-16_05_03_dSQBC_Matrix_PowerCy_1_KM_MA_4StepsLin.mat')['Matrix_twoD']
-        self.tau = loadmat('dSQBC1/1-tau_axis.mat')['tau_axis'][0,:]
-        self.wt = loadmat('dSQBC1/1-wt_axis.mat')['wt_axis'][:,0]
+    def __init__(self,*,root='dSQBC1'):
+        self.data = loadmat(os.path.join(root,'1-16_05_03_dSQBC_Matrix_PowerCy_1_KM_MA_4StepsLin.mat'))['Matrix_twoD']
+        self.tau = loadmat(os.path.join(root,'dSQBC1/1-tau_axis.mat'))['tau_axis'][0,:]
+        self.wt = loadmat(os.path.join(root,'dSQBC1/1-wt_axis.mat'))['wt_axis'][:,0]
         self.Is = np.array([4.2,3.2,2.2,1.2,0.3])
 
 class loadDSQBC3:
-    def __init__(self):
-        self.data = loadmat('dSQBC3/24_05_23_173_dSQBC_Matrix_PowerCy_1_KM_MA_4StepsLin.mat')['Matrix_twoD']
-        self.tau = loadmat('dSQBC3/tau_axis_24_05_23_17.mat')['tau_axis'][0,:]
-        self.wt = loadmat('dSQBC3/wt_axis_24_05_23_17.mat')['wt_axis'][:,0]
+    def __init__(self,*,root='dSQBC3'):
+        self.data = loadmat(os.path.join(root,'24_05_23_173_dSQBC_Matrix_PowerCy_1_KM_MA_4StepsLin.mat'))['Matrix_twoD']
+        self.tau = loadmat(os.path.join(root,'dSQBC3/tau_axis_24_05_23_17.mat'))['tau_axis'][0,:]
+        self.wt = loadmat(os.path.join(root,'dSQBC3/wt_axis_24_05_23_17.mat'))['wt_axis'][:,0]
         self.Is = np.array([6,5,4,3,1.5])
 
 class loadDSQBC123:
@@ -64,50 +64,71 @@ class loadDSQBC123:
 
 class loadDSQBC4:
     '''Data from 2024_05_31 on dSQBC'''
-    def __init__(self):
-        self.data = loadmat('dSQBC4/24_05_31_03_dSQBC_Matrix_PowerCy_1_KM_MA.mat')['Matrix_twoD']
-        self.tau = loadmat( 'dSQBC4/tau_axis310503.mat')['tau_axis'][0,:]
-        self.wt = loadmat(   'dSQBC4/wt_axis_310503.mat')['wt_axis'][:,0]
+    def __init__(self,*,root='dSQBC4'):
+        self.data = loadmat(os.path.join(root,'24_05_31_03_dSQBC_Matrix_PowerCy_1_KM_MA.mat'))['Matrix_twoD']
+        self.tau = loadmat(os.path.join(root,'tau_axis310503.mat'))['tau_axis'][0,:]
+        self.wt = loadmat(os.path.join(root,'wt_axis_310503.mat'))['wt_axis'][:,0]
         #I_steps_310503.txt is a csv text file with the pulse power values. Read it in and store values in self.Is
-        with open('dSQBC4/I_steps_310503.txt','r') as f:
+        with open(os.path.join(root,'I_steps_310503.txt'),'r') as f:
             self.Is = np.array([float(x) for x in f.read().split(',')])
         # self.Is = np.array([6,5,4,3,1.5])
         self.name = 'dSQBC20240531'
 
 class loadDSQBC_50kHz:
     '''Data from 2024_06_12 on dSQBC at 50 kHz'''
-    def __init__(self):
-        root = '/Users/jacob/Dropbox/Research/NLO/raw_data_dSQBC_12_06_24-08/'
-        self.data = loadmat(root + '24_06_12_08_dSQBC_Matrix_PowerCy_1_KM_RZ_SB.mat')['Matrix_twoD']
-        self.tau = loadmat( root + 'tau_axis.mat')['tau_axis'][0,:]
-        self.wt = loadmat(  root + 'wt_axis.mat')['wt_axis'][:,0]
+    def __init__(self,root='dSQBC_50kHz'):
+        self.data = loadmat(os.path.join(root,'24_06_12_08_dSQBC_Matrix_PowerCy_1_KM_RZ_SB.mat'))['Matrix_twoD']
+        self.tau = loadmat(os.path.join(root,'tau_axis.mat'))['tau_axis'][0,:]
+        self.wt = loadmat(os.path.join(root,'wt_axis.mat'))['wt_axis'][:,0]
         #I_steps_310503.txt is a csv text file with the pulse power values. Read it in and store values in self.Is
         with open(root + 'Powers_12_06_24-08.txt','r') as f:
             self.Is = np.array([float(x) for x in f.read().split(',')])
         # self.Is = np.array([6,5,4,3,1.5])
         self.name = 'dSQBC_50kHz'
 
+class loadDSQBC_50kHzNoise:
+    '''Data from 2024_06_12 on dSQBC at 50 kHz'''
+    def __init__(self,root='dSQBC_50kHzNoise'):
+        self.data = loadmat(os.path.join(root,'24_06_17_06_2DnoSample_Matrix_tau_x_1_x_wt.mat'))['Matrix_twoD']
+        self.tau = loadmat(os.path.join(root,'tau_axis.mat'))['tau_axis'][0,:]
+        self.wt = loadmat(os.path.join(root,'wt_axis.mat'))['wt_axis'][:,0]
+        self.Is = np.array([np.nan])
+        self.name = 'dSQBC_50kHzNoise'
+
 loader_dictionary = {'Stage':loadStage,'Shaper':loadShaper,'dSQBC1':loadDSQBC1,
                      'dSQBC2':loadDSQBC2,'dSQBC3':loadDSQBC3,'dSQBC123':loadDSQBC123,
-                     'dSQBC4':loadDSQBC4, 'dSQBC_50kHz':loadDSQBC_50kHz}
+                     'dSQBC4':loadDSQBC4, 'dSQBC_50kHz':loadDSQBC_50kHz, 
+                     'dSQBC_50kHzNoise':loadDSQBC_50kHzNoise}
 
 class visualize:
     hbar =  6.582119E-1
     region_1Q = [[1.4,1.9],[1.5,1.8]]
     region_2Q = [[2.8,3.9],[1.5,1.8]]
 
-    def __init__(self,folder):
-        self.load_data(folder)
+    def __init__(self,folder,*,root='auto'):
+        """Load data and perform DFT wrt tau
+        Args:
+            folder : specifies which data to load, must be a key from
+                loader_dictionary.
+        Kwargs:
+            root : specifies the full or relative directory location of the data to load
+                if set to 'auto', argument folder is taken to also be the relative
+                directory location
+        """
+        
+        if root == 'auto':
+            root = folder
+        self.load_data(folder,root=root)
         self.reshape_data()
         self.ft()
         self.full_data = self.data.copy()
         self.full_data_ft = self.data_ft.copy()
         self.full_wt = self.wt.copy()
         self.full_tau = self.tau.copy()
-        self.savedir = os.path.join(folder,'figures')
+        self.savedir = os.path.join(root,'figures')
 
-    def load_data(self,folder):
-        loader = loader_dictionary[folder]()
+    def load_data(self,folder,*,root=''):
+        loader = loader_dictionary[folder](root=root)
         self.data = loader.data
         self.tau = loader.tau
         self.wt = loader.wt
@@ -882,5 +903,5 @@ class save_and_load_fits:
         self.fit_errors = arch['fit_errors']
 
 class analyze(visualize,modifiedSeparateOrders,save_and_load_fits):
-    def __init__(self,folder):
-        super().__init__(folder)
+    def __init__(self,folder,*,root='auto'):
+        super().__init__(folder,root=root)
