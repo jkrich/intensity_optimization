@@ -76,19 +76,36 @@ class loadDSQBC4:
 
 class loadDSQBC_50kHz:
     '''Data from 2024_06_12 on dSQBC at 50 kHz'''
-    def __init__(self,root='dSQBC_50kHz'):
-        self.data = loadmat(os.path.join(root,'24_06_12_08_dSQBC_Matrix_PowerCy_1_KM_RZ_SB.mat'))['Matrix_twoD']
-        self.tau = loadmat(os.path.join(root,'tau_axis.mat'))['tau_axis'][0,:]
-        self.wt = loadmat(os.path.join(root,'wt_axis.mat'))['wt_axis'][:,0]
+    root = '/Users/jacob/Dropbox/Research/NLO/raw_data_dSQBC_12_06_24-08/'
+    def __init__(self, root = root):        
+        self.data = loadmat(root + '24_06_12_08_dSQBC_Matrix_PowerCy_1_KM_RZ_SB.mat')['Matrix_twoD']
+        self.tau = loadmat( root + 'tau_axis.mat')['tau_axis'][0,:]
+        self.wt = loadmat(  root + 'wt_axis.mat')['wt_axis'][:,0]
         #I_steps_310503.txt is a csv text file with the pulse power values. Read it in and store values in self.Is
         with open(root + 'Powers_12_06_24-08.txt','r') as f:
             self.Is = np.array([float(x) for x in f.read().split(',')])
         # self.Is = np.array([6,5,4,3,1.5])
         self.name = 'dSQBC_50kHz'
 
+class load_polymer_50kHz:
+    '''Data from 2024_06_12 on polymer at 50 kHz'''
+    root = '/Users/jacob/Dropbox/Research/NLO/raw_data_P18_11_06_24-05/'
+    def __init__(self, root=root):        
+        self.data = loadmat(root + '24_06_11_05_P18_Matrix_PowerCy_1_KM_MA.mat')['Matrix_twoD']
+        self.tau = loadmat( root + 'tau_axis.mat')['tau_axis'][0,:]
+        self.wt = loadmat(  root + 'wt_axis.mat')['wt_axis'][:,0]
+        #I_steps_310503.txt is a csv text file with the pulse power values. Read it in and store values in self.Is
+        with open(root + 'power_11_06_24-05_P18_in_nJ.txt','r') as f:
+            self.Is = np.array([float(x) for x in f.read().split(',')])
+        # self.Is = np.array([6,5,4,3,1.5])
+        self.name = 'polymer_50kHz'
+
+
+
 class loadDSQBC_50kHzNoise:
     '''Data from 2024_06_12 on dSQBC at 50 kHz'''
-    def __init__(self,root='dSQBC_50kHzNoise'):
+    root='dSQBC_50kHzNoise'
+    def __init__(self,root=root):
         self.data = loadmat(os.path.join(root,'24_06_17_06_2DnoSample_Matrix_tau_x_1_x_wt.mat'))['Matrix_twoD']
         self.tau = loadmat(os.path.join(root,'tau_axis.mat'))['tau_axis'][0,:]
         self.wt = loadmat(os.path.join(root,'wt_axis.mat'))['wt_axis'][:,0]
@@ -97,7 +114,8 @@ class loadDSQBC_50kHzNoise:
 
 loader_dictionary = {'Stage':loadStage,'Shaper':loadShaper,'dSQBC1':loadDSQBC1,
                      'dSQBC2':loadDSQBC2,'dSQBC3':loadDSQBC3,'dSQBC123':loadDSQBC123,
-                     'dSQBC4':loadDSQBC4, 'dSQBC_50kHz':loadDSQBC_50kHz, 
+                     'dSQBC4':loadDSQBC4, 'dSQBC_50kHz':loadDSQBC_50kHz,
+                     'polymer_50kHz':load_polymer_50kHz,
                      'dSQBC_50kHzNoise':loadDSQBC_50kHzNoise}
 
 class visualize:
@@ -172,7 +190,7 @@ class visualize:
                 data += av[np.newaxis,...]/2
         else:
             data = self.data
-        print(self.tau.shape,self.data.shape)
+        print(f"tau.shape: {self.tau.shape}, data.shape: {self.data.shape}")
         self.wtau, data_ft = ufss.signals.SignalProcessing.ft1D(self.tau,data,axis=0)
         self.data_ft = np.real(data_ft) * np.pi
         if remove_offset:
@@ -228,8 +246,8 @@ class visualize:
         region3 = [[3.8,4.4],[-np.inf,np.inf]]
         x1,y1,z1 = self.get_region(region1)
         x2,y2,z2 = self.get_region(region2)
-        x3,y3,z3 = self.get_region(region3)
-        print(z1.shape,z2.shape,z3.shape)
+        x3,y3,z3 = self.get_region(region3)        
+        print(f"remove_offset: region1 shape {z1.shape},region 2 shape {z2.shape}, region 3 shape {z3.shape}")
         z = np.concatenate((z1,z2,z3),axis=0)
         self.DC_vs_wt = np.average(z,axis=0)
         self.data_ft = self.data_ft - self.DC_vs_wt[np.newaxis,:,:]
@@ -332,10 +350,14 @@ class visualize:
             region = self.region_1Q
         x,y,z = self.get_region(region)
         ufss.signals.plot2D(x,y,z[...,I_index],part='real',ax=ax,fig=fig)
-        plt.title('I = {:.0f} $\mu$W'.format(self.all_Is[I_index]))
-        plt.xlabel(r'$\omega_\tau$ (eV)')
-        plt.ylabel('Detection Frequency (eV)')
-        plt.tight_layout()
+        if fig is None:
+            fig = plt.gcf()
+        if ax is None:
+            ax=plt.gca()
+        ax.set_title('I = {:.0f} $\mu$W'.format(self.all_Is[I_index]))
+        ax.set_xlabel(r'$\omega_\tau$ (eV)')
+        ax.set_ylabel('Detection Frequency (eV)')
+        fig.tight_layout()
 
     def plot_2Q(self,I_index,*,region='default',vmax='max'):
         if region == 'default':
@@ -703,7 +725,7 @@ class modifiedSeparateOrders(SeparateOrders):
             ufss.signals.plot2D(x,y,z[...,i],part='real',fig=fig,ax=axes[i],vmax=vmax)
             axes[i].text(0.05,0.85,'$S^{('+'{}'.format(str(2*i+3)) + ')}$',transform=axes[i].transAxes)
 
-    def plot_orders_separate_regions(self,region_inds =[1,2],fit=False):
+    def plot_orders_separate_regions(self,region_inds =[1,2],fit=False, plot_data=False,data_region=None,fontsize=12):
         if fit:
             Z = self.fit_params
         else:
@@ -711,20 +733,32 @@ class modifiedSeparateOrders(SeparateOrders):
         N = Z.shape[-1]
         regions = [self.regions[k] for k in region_inds]
         m = len(regions)
-        fig, axes = plt.subplots(N,m,sharex=False,sharey=False,figsize=(m*4.5,2.5*N))
+        # If plot_data is true, add a column at left showing the raw data
+        plot_cols = m+1 if plot_data else m
+        offset = 1 if plot_data else 0
+        fig, axes = plt.subplots(N,plot_cols,sharex=False,sharey=False,figsize=(m*4.5,2.5*N))
         region_names = ['0Q','1Q','2Q','3Q','4Q']
         region_names = [region_names[k] for k in region_inds]
         for i in range(m):
-            axes[0][i].set_title(region_names[i])
+            axes[0][i+offset].set_title(region_names[i])
             x,y,z = self.get_region_function(Z,regions[i])
             for j in range(N):
-                ufss.signals.plot2D(x,y,z[...,j],part='real',fig=fig,ax=axes[j][i])
-                axes[j][i].text(0.05,0.85,'$S^{('+'{}'.format(str(2*j+3)) + ')}$',transform=axes[j][i].transAxes)
+                ufss.signals.plot2D(x,y,z[...,j],part='real',fig=fig,ax=axes[j][i+offset])
+                axes[j][i+offset].text(0.05,0.85,'$S^{('+'{}'.format(str(2*j+3)) + ')}$',
+                                       transform=axes[j][i+offset].transAxes,fontsize=fontsize)
+        if plot_data:
+            # Add a column of plots showing the raw data
+            if data_region is None:
+                data_region = self.region_1Q
+            for j in range(N):
+                self.plot_1Q(j,region=data_region, ax=axes[j][0])
+                axes[j][0].set_title(f'I={self.Is[j]}')
         #Add a supertitle to indicate what intensities were used        
         title_text = self.name if hasattr(self,'name') else ''
         title_text += " fit" if fit else " VdM"
         title_text += f' Intensities: {self.Is}'
         fig.suptitle(title_text)
+        fig.tight_layout()
         return fig, axes
 
     def plot_fit_orders(self,region = 'default'):
@@ -751,7 +785,7 @@ class modifiedSeparateOrders(SeparateOrders):
     def set_integration_regions(self,regions):
         self.regions = regions
 
-    def compare_nQ_multiples_visual(self,order,*,fit=True):
+    def compare_nQ_multiples_visual(self,order,*,fit=True, fig=None, ax=None, save=True):
         if fit:
             Z = self.fit_params
         else:
@@ -763,8 +797,13 @@ class modifiedSeparateOrders(SeparateOrders):
             z = np.trapz(z,x=x,axis=0)
             z_list.append(z[:,order-1])
             y_list.append(y)
-
-        plt.figure()
+        if fig is None and ax is None:
+            fig = plt.figure()
+            ax = plt.gca()
+        elif fig is None:
+            fig = plt.gcf()
+        elif ax is None:
+            ax = plt.gca()
         lines = []
         colors = ['C0','C1','C2','C3','C4']
         for i in range(len(self.regions)-1,-1,-1):
@@ -775,14 +814,15 @@ class modifiedSeparateOrders(SeparateOrders):
                 z = z / factor
             # if i == 0:
             #     z = z/2
-            ln, = plt.plot(y,z,color=colors[i])
+            ln, = ax.plot(y,z,color=colors[i])
             lines.append(ln)
 
-        plt.xlabel('Detection Energy (eV)')
-        plt.ylabel('$S_{nQ}^{('+'{}'.format(2*order+1)+')}$')
-        plt.legend(lines[::-1],['0Q','1Q','2Q','3Q','4Q'],title='Normalized')
-        plt.tight_layout()
-        self.savefig('Integrated_comparison')
+        ax.set_xlabel('Detection Energy (eV)')
+        ax.set_ylabel('$S_{nQ}^{('+'{}'.format(2*order+1)+')}$')
+        ax.legend(lines[::-1],['0Q','1Q','2Q','3Q','4Q'],title='Normalized')
+        fig.tight_layout()
+        if save:
+            self.savefig('Integrated_comparison')
 
     def L2_norm(self,A,B):
         numer = np.sum(np.abs(A-B)**2)

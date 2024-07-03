@@ -85,7 +85,7 @@ class SeparateOrders:
     def invert(self):
         sz = self.Is.size
         V = np.zeros((sz,sz))
-        print(f"I0 ={self.I0:0.2f}")
+        # print(f"I0 ={self.I0:0.2f}")
         for i in range(sz):
             V[:,i] = (self.Is/self.I0)**(i+1)
 
@@ -205,6 +205,9 @@ class OptimizeIntensities(SeparateOrders):
         self.sys_weight = 1
 
     def extract_orders(self,intensities):
+        '''Given input set of N intensities, take |intensities| and extract 
+        the first N orders using self.invert for the van der Monde method'''
+        intensities = np.abs(intensities)
         I0 = np.mean(intensities)/10
         self.set_intensities(intensities)
         self.I0 = I0
@@ -272,7 +275,8 @@ class OptimizeIntensities(SeparateOrders):
     def print_relative_errors(self,intensities):
         re, se = self.get_random_and_systematic_error_arrays(intensities)
         print('Relative random error for each order',np.round(re,5),
-              '\n','Relative systematic error for each order',np.round(se,5))
+              '\n','Relative systematic error for each order',np.round(se,5),
+              '\n Total relative error for each order',np.round(np.sqrt(re**2+se**2),5))
 
     def get_random_and_systematic_errors(self,intensities):
         """Get total random and systematic errors, separately, for the orders of interest"""
@@ -300,6 +304,8 @@ class OptimizeIntensities(SeparateOrders):
                 options are : 'Linear Sampling', 'Intensity Cycling' and 'Chebyshev'.
             bounds : bounds for I_0 for the 1D optimization procedure. This is ignored if intensity_selection
                 is 'any'
+        Returns: intensities, r_err, s_err, rms_err
+            intensities : the N intensities that minimize the total error scaled with I_sat = 1
         """
         self.num = number_of_orders
         if N < self.num:
@@ -310,14 +316,50 @@ class OptimizeIntensities(SeparateOrders):
             res = minimize(f,x0,method='Nelder-Mead')
             intensities = np.abs(res.x)
             intensities.sort()
+        elif intensity_selection == 'bounded':
+            # we map the region [-inf, inf] to the given bounds, 
+            # use unconstrained optimization, and then map back
+            # Many possibilities. Let's use this one, from https://math.stackexchange.com/questions/75077/mapping-the-real-line-to-the-unit-interval            
+            # print(f"bounded: {bounds}")
+            def h(x,bounds):
+                # (a,b) to (0,1)
+                a,b = bounds
+                return (x-a)/(b-a)
+            def h_inv(y,bounds):
+                # (0,1) to (a,b)
+                a,b = bounds
+                return y*(b-a)+a
+            def g(x):
+                #(0,1) to (-inf,inf)
+                # return (2*x-1)/(x-x**2)
+                return np.log((1-x)/x)
+            def g_inv(y):
+                #(-inf,inf) to (0,1)
+                # return ((y-2) + np.sqrt((y-2)**2+4))/(2*y)
+                return 1/(1+np.exp(y))
+            def bound2R(x,bounds):
+                return g(h(x,bounds))
+            def R2bound(y,bounds):
+                return h_inv(g_inv(y),bounds)
+            f = lambda x: self.get_total_error(R2bound(x,bounds))
+            x0 = np.arange(1,N+1)/N/4
+            x0 = bound2R(x0,bounds)
+            res = minimize(f,x0,method='Nelder-Mead')
+            # print(res.x)
+            # print(R2bound(res.x,bounds))
+            # intensities = np.abs(res.x) 
+            intensities = R2bound(res.x,bounds)
+            intensities.sort()
         else:
+            # This code is a generic else, but it really only does intensity cycling ratios
+            print('Intensity selection:',intensity_selection)
             def f(I):
                 intensities = intensity_dict[intensity_selection](I,N)
                 return self.get_total_error(intensities)
             x0 = 1
             res = minimize(f,x0,method='Powell',bounds = bounds)
             intensities = intensity_cycling(res.x,N)
-        print(intensities)
+        # print(intensities)
         r_err, s_err = self.get_random_and_systematic_errors(intensities)
         rms_err = np.sqrt(s_err**2+r_err**2)
         return intensities, r_err, s_err, rms_err
