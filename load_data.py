@@ -100,8 +100,6 @@ class load_polymer_50kHz:
         # self.Is = np.array([6,5,4,3,1.5])
         self.name = 'polymer_50kHz'
 
-
-
 class loadDSQBC_50kHzNoise:
     '''Data from 2024_06_12 on dSQBC at 50 kHz'''
     root='dSQBC_50kHzNoise'
@@ -112,11 +110,43 @@ class loadDSQBC_50kHzNoise:
         self.Is = np.array([np.nan])
         self.name = 'dSQBC_50kHzNoise'
 
+class loadDSQBC_50kHz_Jul03:
+    '''Data from 2024_07_03 on dSQBC at 50 kHz'''
+    root = '/Users/jacob/Dropbox/Research/NLO/IntensityDependent2DandTA/HO2D_data_dSQBC_03July_14/'
+    def __init__(self,root=root):
+        print(f"root={root}")
+        self.data = loadmat(os.path.join(root,'24_07_03_04_SQBC_Matrix_PowerCy_1_KM_LB_SB_data.mat'))['Matrix_twoD']
+        self.tau = loadmat(os.path.join(root,'tau_axis.mat'))['tau_axis'][0,:]
+        self.wt = loadmat(os.path.join(root,'wt_axis.mat'))['wt_axis'][:,0]
+        with open(root + 'intensities_in_nJ.txt','r') as f:
+            self.Is = np.array([float(x) for x in f.read().split(',')])
+        self.name = 'dSQBC_50kHz_Jul03'
+        self.T_info = loadmat(os.path.join(root,'T_AxisPowerCy.mat'))
+        print(self.T)
+
+class load_P18_50kHz_Jul03:
+    '''Data from 2024_07_03 on P18 at 50 kHz'''
+    root = '/Users/jacob/Dropbox/Research/NLO/IntensityDependent2DandTA/HO2D_data_dSQBC_03July_14/'
+    def __init__(self,root=root):
+        print(f"root={root}")
+        self.data = loadmat(os.path.join(root,'24_07_04_04_P18_Matrix_PowerCy_1_KM_LB_SB_data3.mat'))['Matrix_twoD']
+        self.tau = loadmat(os.path.join(root,'tau_axis.mat'))['tau_axis'][0,:]
+        self.wt = loadmat(os.path.join(root,'wt_axis.mat'))['wt_axis'][:,0]
+        with open(root + 'intensities_in_nJ.txt','r') as f:
+            self.Is = np.array([float(x) for x in f.read().split(',')])
+        self.name = 'P18_50kHz_Jul03'
+        self.T_info = loadmat(os.path.join(root,'PowerCy.mat'))
+        print(self.T_info)
+
+        
+
 loader_dictionary = {'Stage':loadStage,'Shaper':loadShaper,'dSQBC1':loadDSQBC1,
                      'dSQBC2':loadDSQBC2,'dSQBC3':loadDSQBC3,'dSQBC123':loadDSQBC123,
                      'dSQBC4':loadDSQBC4, 'dSQBC_50kHz':loadDSQBC_50kHz,
                      'polymer_50kHz':load_polymer_50kHz,
-                     'dSQBC_50kHzNoise':loadDSQBC_50kHzNoise}
+                     'dSQBC_50kHzNoise':loadDSQBC_50kHzNoise,
+                     'dSQBC_50kHz_Jul03':loadDSQBC_50kHz_Jul03,
+                     'P18_50kHz_Jul03':load_P18_50kHz_Jul03}
 
 class visualize:
     hbar =  6.582119E-1
@@ -785,7 +815,7 @@ class modifiedSeparateOrders(SeparateOrders):
     def set_integration_regions(self,regions):
         self.regions = regions
 
-    def compare_nQ_multiples_visual(self,order,*,fit=True, fig=None, ax=None, save=True):
+    def compare_nQ_multiples_visual(self,order,*,fit=True, fig=None, ax=None, save=True, fontsize=10):
         if fit:
             Z = self.fit_params
         else:
@@ -817,8 +847,8 @@ class modifiedSeparateOrders(SeparateOrders):
             ln, = ax.plot(y,z,color=colors[i])
             lines.append(ln)
 
-        ax.set_xlabel('Detection Energy (eV)')
-        ax.set_ylabel('$S_{nQ}^{('+'{}'.format(2*order+1)+')}$')
+        ax.set_xlabel('$\omega_t$ (eV)',fontsize=fontsize)
+        ax.set_ylabel('$S_{nQ}^{('+'{}'.format(2*order+1)+')}$',fontsize=fontsize)
         ax.legend(lines[::-1],['0Q','1Q','2Q','3Q','4Q'],title='Normalized')
         fig.tight_layout()
         if save:
