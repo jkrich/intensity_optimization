@@ -122,7 +122,7 @@ class loadDSQBC_50kHz_Jul03:
             self.Is = np.array([float(x) for x in f.read().split(',')])
         self.name = 'dSQBC_50kHz_Jul03'
         self.T_info = loadmat(os.path.join(root,'T_AxisPowerCy.mat'))
-        print(self.T)
+        print(self.T_info)
 
 class load_P18_50kHz_Jul03:
     '''Data from 2024_07_03 on P18 at 50 kHz'''
@@ -181,6 +181,7 @@ class visualize:
         self.tau = loader.tau
         self.wt = loader.wt
         self.all_Is = loader.Is
+        self.name = loader.name
 
     def bin_omega_t(self,n):
         sh = self.full_data_ft.shape
@@ -217,6 +218,8 @@ class visualize:
             data *= win[:,np.newaxis,np.newaxis]
             data[0,...] *= 0.5
             if remove_ave:
+                # Add back in the 0Q signal (ie, not tau dependent) but multiply it by 0.5, which makes self-consistency checks work correctly, 
+                # since half of the 0Q is associated with the -nQ signals.
                 data += av[np.newaxis,...]/2
         else:
             data = self.data
@@ -766,7 +769,7 @@ class modifiedSeparateOrders(SeparateOrders):
         # If plot_data is true, add a column at left showing the raw data
         plot_cols = m+1 if plot_data else m
         offset = 1 if plot_data else 0
-        fig, axes = plt.subplots(N,plot_cols,sharex=False,sharey=False,figsize=(m*4.5,2.5*N))
+        fig, axes = plt.subplots(N,plot_cols,sharex="col",sharey="col",figsize=(m*4.5,2.5*N))
         region_names = ['0Q','1Q','2Q','3Q','4Q']
         region_names = [region_names[k] for k in region_inds]
         for i in range(m):
@@ -774,7 +777,9 @@ class modifiedSeparateOrders(SeparateOrders):
             x,y,z = self.get_region_function(Z,regions[i])
             for j in range(N):
                 ufss.signals.plot2D(x,y,z[...,j],part='real',fig=fig,ax=axes[j][i+offset])
-                axes[j][i+offset].text(0.05,0.85,'$S^{('+'{}'.format(str(2*j+3)) + ')}$',
+                I_0_power = '' if j==0 else str(j+1) 
+                axes[j][i+offset].text(0.82,0.8,'$S^{('+'{}'.format(str(2*j+3)) + ')}' 
+                                       + 'I_0^{' + I_0_power + '}$',
                                        transform=axes[j][i+offset].transAxes,fontsize=fontsize)
         if plot_data:
             # Add a column of plots showing the raw data
@@ -810,7 +815,7 @@ class modifiedSeparateOrders(SeparateOrders):
         fig,axes = plt.subplots(N,1,figsize=(4,height))
         for i in range(N):
             axes[i].plot(self.hbar*self.wtau,z[:,i])
-            axes[i].text(0.05,0.85,'$S^{('+'{}'.format(str(2*i+3)) + ')}$',transform=axes[i].transAxes)
+            axes[i].text(0.05,0.85,'$S^{('+'{}'.format(str(2*i+3)) + ')}I_0^{}$'.format(i+1),transform=axes[i].transAxes)
 
     def set_integration_regions(self,regions):
         self.regions = regions

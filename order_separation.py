@@ -5,6 +5,11 @@ from scipy.optimize import curve_fit, minimize
 
 class SeparateOrders:
     def __init__(self,f):
+        '''
+        f: function of intensity giving the exact signal. 
+        Eg, could be a saturation form (for TA) or 
+        a modified Bessel function for the nQ spectrum with specified n
+        '''
         self.f = f
         self.I0 = 1
 
@@ -15,6 +20,9 @@ class SeparateOrders:
         self.Is = Is
 
     def eval_intensities(self):
+        '''
+        Take the intensities in self.Is and evaluate the function f(Is) at each one
+        Returns array f(Is)'''
         self.f_of_Is = self.eval_intensities_manual(self.Is)
 
     def eval_intensities_manual(self,Is):
@@ -98,7 +106,7 @@ class SeparateOrders:
         self.f_orders_no_noise = np.moveaxis(f_orders_no_noise,0,-1)
         # print(self.f_orders)
         # corr = np.array([self.I0**(n+1) for n in range(sz)])
-        # self.f_orders /= corr
+        # self.f_orders /= corr    
         self.noise_by_order = np.sqrt(np.sum(V_inv**2,axis=1))*self.noise_floor
 
     def interpolate_fun(self,ser,I):
@@ -198,6 +206,10 @@ intensity_dict = {'Intensity Cycling':intensity_cycling,
 
 class OptimizeIntensities(SeparateOrders):
     def __init__(self,f,f_series,noise):
+        '''
+        f: function of intensity giving the exact signal.
+        f_series: function of order m and intensity, giving the contribution of the mth term in the expansion of f
+        '''
         self.f = f
         self.f_series = f_series
         self.noise_floor = noise
@@ -208,7 +220,9 @@ class OptimizeIntensities(SeparateOrders):
         '''Given input set of N intensities, take |intensities| and extract 
         the first N orders using self.invert for the van der Monde method'''
         intensities = np.abs(intensities)
-        I0 = np.mean(intensities)/10
+        I0 = np.mean(intensities)/10    
+        # I0 = np.max(intensities)/4
+        I0 = 36/60 # just fix a value       #1/600 #set to 36/60 on 2025/4/1
         self.set_intensities(intensities)
         self.I0 = I0
         self.eval_intensities()
@@ -253,7 +267,7 @@ class OptimizeIntensities(SeparateOrders):
     def get_true_orders(self):
         true_orders = np.zeros(self.f_orders.shape,dtype=self.f_orders.dtype)
         for n in range(1,self.Is.size+1):
-            true_orders[...,n-1] = self.f_series(n,self.I0)
+            true_orders[...,n-1] = self.f_series(n,self.I0)                
         return true_orders
     
     def get_random_and_systematic_error_arrays(self,intensities):
@@ -262,14 +276,15 @@ class OptimizeIntensities(SeparateOrders):
         denominator = np.abs(true_orders.copy())**2
         while len(denominator.shape) > 1:
             denominator = np.sum(denominator,axis=0)
-        denominator = np.sqrt(denominator)
+        denominator = np.sqrt(denominator)        
         zero_inds = np.where(np.isclose(denominator,0,atol=1E-12))
         denominator[zero_inds] = 1
         re = np.abs(self.noise_by_order[:self.num]*np.sqrt(true_orders[...,0].size)/denominator)
         se = np.abs((true_orders - self.f_orders_no_noise[...,:self.num])/denominator)**2
         while len(se.shape) > 1:
             se = np.sum(se,axis=0)
-        se = np.sqrt(se)
+        se = np.sqrt(se)        
+        # print(f"r: {re}, s: {se}, denom: {denominator}")
         return re, se
 
     def print_relative_errors(self,intensities):
@@ -292,7 +307,8 @@ class OptimizeIntensities(SeparateOrders):
         w = self.sys_weight
         return np.sqrt(re_av**2 + w**2 * se_av**2)
 
-    def minimize_errors_single_N(self,number_of_orders,N,intensity_selection='any',bounds=[[1E-15,2],]):
+    def minimize_errors_single_N(self,number_of_orders,N,intensity_selection='any',
+                                 bounds=[1E-15,2],optimization_cycles=1, verbose=False, x0=None):
         """Minimize random and systematic errors for the Vandermonde inversion procedure.
         Args:
             number_of_orders (int) : number of orders for which you wish to minimize the error <= N
@@ -304,6 +320,7 @@ class OptimizeIntensities(SeparateOrders):
                 options are : 'Linear Sampling', 'Intensity Cycling' and 'Chebyshev'.
             bounds : bounds for I_0 for the 1D optimization procedure. This is ignored if intensity_selection
                 is 'any'
+            optimization_cycles : number of times to repeat the optimization procedure. This is ignored if intensity_selection
         Returns: intensities, r_err, s_err, rms_err
             intensities : the N intensities that minimize the total error scaled with I_sat = 1
         """
@@ -342,9 +359,17 @@ class OptimizeIntensities(SeparateOrders):
             def R2bound(y,bounds):
                 return h_inv(g_inv(y),bounds)
             f = lambda x: self.get_total_error(R2bound(x,bounds))
-            x0 = np.arange(1,N+1)/N/4
+            if x0 is None:
+                x0 = np.arange(1,N+1)/N/4
             x0 = bound2R(x0,bounds)
-            res = minimize(f,x0,method='Nelder-Mead')
+
+            for i in range(optimization_cycles):                
+                res = minimize(f,x0,method='Nelder-Mead')
+                if verbose:
+                    with np.printoptions(precision=4):
+                        print(f'Cycle {i}, x0 = {R2bound(x0,bounds)}, x = {R2bound(res.x,bounds)}, error = {res.fun:0.4f}')
+                x0 = res.x #restart from the previous result
+
             # print(res.x)
             # print(R2bound(res.x,bounds))
             # intensities = np.abs(res.x) 
