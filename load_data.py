@@ -121,8 +121,11 @@ class loadDSQBC_50kHz_Jul03:
         with open(root + 'intensities_in_nJ.txt','r') as f:
             self.Is = np.array([float(x) for x in f.read().split(',')])
         self.name = 'dSQBC_50kHz_Jul03'
-        self.T_info = loadmat(os.path.join(root,'T_AxisPowerCy.mat'))
-        print(self.T_info)
+        try:
+            self.T_info = loadmat(os.path.join(root,'T_AxisPowerCy.mat'))
+            print(self.T)
+        except FileNotFoundError:
+            print('T_AxisPowerCy.mat not found')
 
 class load_P18_50kHz_Jul03:
     '''Data from 2024_07_03 on P18 at 50 kHz'''
@@ -138,6 +141,17 @@ class load_P18_50kHz_Jul03:
         self.T_info = loadmat(os.path.join(root,'PowerCy.mat'))
         print(self.T_info)
 
+class load_P18_paper_data:
+    root = 'paper_data'
+    def __init__(self,root=root):
+        data_arch = loadmat(os.path.join(root,'24_07_04_04_P18_Matrix_PowerCy_dataas3_wo35.mat'))
+        self.data = data_arch['Matrix_twoD']
+        tau_arch = loadmat(os.path.join(root,'tau_axis.mat'))
+        self.tau = tau_arch['tau_axis'][0,:]
+        wt_arch  = loadmat(os.path.join(root,'wt.mat'))
+        self.wt = wt_arch['wt'][0,:]/6.582119E-1
+        self.name = 'paper_data'
+        self.Is = np.array([60.04,55.1,39.9,21.84,4.978,0.627])
         
 
 loader_dictionary = {'Stage':loadStage,'Shaper':loadShaper,'dSQBC1':loadDSQBC1,
@@ -146,14 +160,15 @@ loader_dictionary = {'Stage':loadStage,'Shaper':loadShaper,'dSQBC1':loadDSQBC1,
                      'polymer_50kHz':load_polymer_50kHz,
                      'dSQBC_50kHzNoise':loadDSQBC_50kHzNoise,
                      'dSQBC_50kHz_Jul03':loadDSQBC_50kHz_Jul03,
-                     'P18_50kHz_Jul03':load_P18_50kHz_Jul03}
+                     'P18_50kHz_Jul03':load_P18_50kHz_Jul03,
+                     'P18_paper_data':load_P18_paper_data}
 
 class visualize:
     hbar =  6.582119E-1
     region_1Q = [[1.4,1.9],[1.5,1.8]]
     region_2Q = [[2.8,3.9],[1.5,1.8]]
 
-    def __init__(self,folder,*,root='auto'):
+    def __init__(self,folder,*,root='auto',tau_reflect = False):
         """Load data and perform DFT wrt tau
         Args:
             folder : specifies which data to load, must be a key from
@@ -168,7 +183,10 @@ class visualize:
             root = folder
         self.load_data(folder,root=root)
         self.reshape_data()
-        self.ft()
+        if tau_reflect:
+            self.ft_tau_reflect()
+        else:
+            self.ft()
         self.full_data = self.data.copy()
         self.full_data_ft = self.data_ft.copy()
         self.full_wt = self.wt.copy()
@@ -180,13 +198,15 @@ class visualize:
         self.data = loader.data
         self.tau = loader.tau
         self.wt = loader.wt
-        self.all_Is = loader.Is
+        self.all_Is = loader.Is / 4
         self.name = loader.name
 
     def bin_omega_t(self,n):
-        sh = self.full_data_ft.shape
+        sh = self.full_data.shape
         sh = (sh[0],sh[1]//n,sh[2])
-        new_data_ft = np.zeros(sh)
+        sh_ft = self.full_data_ft.shape
+        sh_ft = (sh_ft[0],sh_ft[1]//n,sh_ft[2])
+        new_data_ft = np.zeros(sh_ft)
         new_data = np.zeros(sh)
         new_wt = np.zeros(sh[1])
         for i in range(new_data_ft.shape[1]):
@@ -208,7 +228,8 @@ class visualize:
         self.data = self.full_data[:num,:,:]
         self.tau = self.full_tau[:num]
 
-    def ft(self,*,factor2=True,remove_ave = True,remove_offset = True, window_alpha = 0):
+    def ft(self,*,factor2=True,remove_ave = True,remove_offset = False, 
+           window_alpha = 0, z_ratio = 2, end_pad = False):
         if factor2:
             data = self.data.copy()
             if remove_ave:
@@ -223,19 +244,50 @@ class visualize:
                 data += av[np.newaxis,...]/2
         else:
             data = self.data
-        print(f"tau.shape: {self.tau.shape}, data.shape: {self.data.shape}")
-        self.wtau, data_ft = ufss.signals.SignalProcessing.ft1D(self.tau,data,axis=0)
-        self.data_ft = np.real(data_ft) * np.pi
+        dtau = self.tau[1] - self.tau[0]
+        # new_tau = np.arange(0,self.tau[-1]*z_ratio+dtau/2,dtau)
+        new_tau = np.arange(0,self.tau.size*z_ratio) * dtau
+        new_shape = list(data.shape)
+        new_shape[0] = new_tau.size
+        new_data = np.zeros(new_shape)
+        new_data[:self.tau.size,...] = data
+        if remove_ave and not end_pad:
+            print('ave-padding')
+            new_data[self.tau.size:,...] += av[np.newaxis,...]/2
+        else:
+            print('end-padding')
+            new_data[self.tau.size:,...] += data[-1,...]
+        print(f"tau.shape: {new_tau.shape}, data.shape: {new_data.shape}")
+        self.wtau, data_ft = ufss.signals.SignalProcessing.ft1D(new_tau,new_data,axis=0)
+        self.data_ft = np.real(data_ft) / (2*np.pi) * (self.wtau[1]-self.wtau[0])
         if remove_offset:
             self.remove_offset()
+        else:
+            self.set_ave_noise_vs_wt()
+
+    def ft_tau_reflect(self,*,remove_offset=False):
+        new_tau_size = self.tau.size * 2 - 1
+        new_tau = np.zeros(new_tau_size)
+        new_tau[:new_tau_size//2 + 1] = -self.tau[::-1]
+        new_tau[new_tau_size//2:] = self.tau
+        new_data = np.zeros((new_tau_size,self.data.shape[1],self.data.shape[2]))
+        new_data[:new_tau_size//2 + 1,:,:] = self.data[::-1,:,:]
+        new_data[new_tau_size//2:,:,:] = self.data
+        print(f"tau.shape: {new_tau.shape}, data.shape: {new_data.shape}")
+        self.wtau, data_ft = ufss.signals.SignalProcessing.ft1D(new_tau,new_data,axis=0)
+        self.data_ft = np.real(data_ft) / (2*np.pi) * (self.wtau[1]-self.wtau[0])
+        if remove_offset:
+            self.remove_offset()
+        else:
+            self.set_ave_noise_vs_wt()
 
     def plot_data(self,I_index,wtau_start = 1):
         x = self.wtau * self.hbar
         x_inds = np.where(x>wtau_start)[0]
         y = self.wt * self.hbar
-        print(x[x_inds].shape,y.shape)
+        # print(x[x_inds].shape,y.shape)
         ufss.signals.plot2D(x[x_inds],y,self.data_ft[x_inds,:,I_index],part='real')
-        plt.title('I = {:.0f} $\mu$W'.format(self.all_Is[I_index]))
+        plt.title(r'I = {:.0f} $\mu$W'.format(self.all_Is[I_index]))
 
     def savefig(self,filename):
         #Create the directories required
@@ -287,13 +339,26 @@ class visualize:
         z_dev = z - self.DC_vs_wt[np.newaxis,:,:]
         self.ave_noise_vs_wt = np.sqrt(np.average(np.abs(z_dev)**2,axis=0))
 
+    def set_ave_noise_vs_wt(self):
+        region1 = [[0.6,0.9],[-np.inf,np.inf]]
+        region2 = [[2.3,2.8],[-np.inf,np.inf]]
+        region3 = [[3.8,4.2],[-np.inf,np.inf]]
+        x1,y1,z1 = self.get_region(region1)
+        x2,y2,z2 = self.get_region(region2)
+        x3,y3,z3 = self.get_region(region3)        
+        # z = np.concatenate((z1,z2,z3),axis=0)
+        z = z1
+        DC_vs_wt = np.average(z,axis=0)
+        z_dev = z - DC_vs_wt[np.newaxis,:,:]
+        self.ave_noise_vs_wt = np.sqrt(np.average(np.abs(z_dev)**2,axis=0))
+
     def plot_noise_vs_I(self,wt):
         wt_ind = np.argmin(np.abs(self.wt * self.hbar-wt))
         wt = self.wt[wt_ind] * self.hbar
         noise = self.ave_noise_vs_wt[wt_ind,:]
         plt.figure()
         plt.plot(self.all_Is,noise)
-        plt.xlabel('Pulse Power ($\mu$W)')
+        plt.xlabel(r'Pulse Power ($\mu$W)')
         plt.ylabel('Noise')
         plt.title(r'$\hbar\omega_t =$ {:.2f}'.format(wt))
 
@@ -303,8 +368,8 @@ class visualize:
         X,Y = np.meshgrid(x,y,indexing='xy')
         plt.figure()
         plt.pcolormesh(X,Y,self.ave_noise_vs_wt)
-        plt.xlabel('$\omega_t$')
-        plt.ylabel('Pulse Power ($\mu$W)')
+        plt.xlabel(r'$\omega_t$')
+        plt.ylabel(r'Pulse Power ($\mu$W)')
 
     def plot_wt_slice(self,I_index,wt,ft=True,fig=None,ax=None,
                       factor2 = False,remove_mean=False,window_alpha = 0):
@@ -342,6 +407,7 @@ class visualize:
 
         x = self.wtau * self.hbar
         x_inds = np.where((x>xa) & (x<xb))[0]
+        # print(x_inds)
         y = self.wt * self.hbar
         y_inds = np.where((y>ya) & (y<yb))[0]
         z = z[x_inds,:,:]
@@ -387,7 +453,7 @@ class visualize:
             fig = plt.gcf()
         if ax is None:
             ax=plt.gca()
-        ax.set_title('I = {:.0f} $\mu$W'.format(self.all_Is[I_index]))
+        ax.set_title(r'I = {:.0f} $\mu$W'.format(self.all_Is[I_index]))
         ax.set_xlabel(r'$\omega_\tau$ (eV)')
         ax.set_ylabel('Detection Frequency (eV)')
         fig.tight_layout()
@@ -397,7 +463,7 @@ class visualize:
             region = self.region_2Q
         x,y,z = self.get_region(region)
         ufss.signals.plot2D(x,y,z[...,I_index],part='real',vmax=vmax)
-        plt.title('I = {:.0f} $\mu$W'.format(self.all_Is[I_index]))
+        plt.title(r'I = {:.0f} $\mu$W'.format(self.all_Is[I_index]))
 
     def sqrt_model(self,x,x0,a):
         return a*np.sqrt(x/x0)
@@ -438,7 +504,7 @@ class visualize:
         plt.plot(self.all_Is, self.sat_model(self.all_Is,self.sat_I0,self.sat_a),'--k')
         plt.ylabel('TA signal')
         plt.xlabel(r'Pump Pulse Power ($\mu$W)')
-        plt.title('$I_0$ = {:.1e}, a = {:.1e}'.format(*popt))
+        plt.title(r'$I_0$ = {:.1e}, a = {:.1e}'.format(*popt))
         plt.tight_layout()
 
     def plot_1Q_vs_I(self,*,region='default',integrated=True,
@@ -471,7 +537,7 @@ class visualize:
         else:
             plt.plot(self.all_Is,n,'C2')
             plt.legend(['Data','Noise floor'])
-        plt.xlabel('Pulse Power ($\mu$W)')
+        plt.xlabel(r'Pulse Power ($\mu$W)')
         if not integrated:
             plt.title('Peak at ({:.2f},{:.2f})'.format(x,y))
         else:
@@ -634,7 +700,7 @@ class visualize:
             a.plot(x,f(x,*popt))            
             print(popt)
         a.set_xlabel('I')
-        fig.suptitle('$\omega_t$ = {:.2f}'.format(wt))
+        fig.suptitle(r'$\omega_t$ = {:.2f}'.format(wt))
 
     def fit_TA_plot_nQ_vs_I(self,wt):
         self.fit_TA_sat_curve(wt=wt)
@@ -655,8 +721,8 @@ class visualize:
             f = self.get_nQ_bessel_model(i)
             axes[i].plot(Is,f(Is,self.sat_I0,self.sat_a),'--k')
             axes[i].set_ylabel('{}Q'.format(i))
-        axes[-1].set_xlabel('Pump Pulse Power ($\mu$W)')
-        fig.suptitle('$I_0$ = {:.1e}, a = {:.1e}'.format(self.sat_I0,self.sat_a))
+        axes[-1].set_xlabel(r'Pump Pulse Power ($\mu$W)')
+        fig.suptitle(r'$I_0$ = {:.1e}, a = {:.1e}'.format(self.sat_I0,self.sat_a))
         fig.tight_layout()
 
     def fit_all_nQ_vs_I(self,wt):
@@ -692,8 +758,8 @@ class visualize:
             f = self.get_nQ_bessel_model(i)
             axes[i].plot(Is,f(Is,*popt)/factors[i],'--k')
             axes[i].set_ylabel('{}Q'.format(i))
-        axes[-1].set_xlabel('Pump Pulse Power ($\mu$W)')
-        fig.suptitle('$I_0$ = {:.1e}, a = {:.1e}'.format(*popt))
+        axes[-1].set_xlabel(r'Pump Pulse Power ($\mu$W)')
+        fig.suptitle(r'$I_0$ = {:.1e}, a = {:.1e}'.format(*popt))
         fig.tight_layout()
 
 
@@ -775,6 +841,7 @@ class modifiedSeparateOrders(SeparateOrders):
         for i in range(m):
             axes[0][i+offset].set_title(region_names[i])
             x,y,z = self.get_region_function(Z,regions[i])
+            print(x.shape,y.shape,z.shape)
             for j in range(N):
                 ufss.signals.plot2D(x,y,z[...,j],part='real',fig=fig,ax=axes[j][i+offset])
                 I_0_power = '' if j==0 else str(j+1) 
@@ -820,16 +887,18 @@ class modifiedSeparateOrders(SeparateOrders):
     def set_integration_regions(self,regions):
         self.regions = regions
 
-    def compare_nQ_multiples_visual(self,order,*,fit=True, fig=None, ax=None, save=True, fontsize=10):
+    def compare_nQ_multiples_visual(self,order,*,fit=True, fig=None, ax=None, save=True, fontsize=10,
+                                    linestyle='-',legend = True):
         if fit:
             Z = self.fit_params
         else:
-            Z = self.f_orders
+            Z = self.f_orders_no_noise
         y_list = []
         z_list = []
         for region in self.regions:
             x,y,z = self.get_region_function(Z,region)
-            z = np.trapz(z,x=x,axis=0)
+            # z = np.trapz(z,x=x,axis=0)
+            z = np.sum(z,axis=0)
             z_list.append(z[:,order-1])
             y_list.append(y)
         if fig is None and ax is None:
@@ -849,12 +918,13 @@ class modifiedSeparateOrders(SeparateOrders):
                 z = z / factor
             # if i == 0:
             #     z = z/2
-            ln, = ax.plot(y,z,color=colors[i])
+            ln, = ax.plot(y,z,color=colors[i],linestyle=linestyle)
             lines.append(ln)
 
-        ax.set_xlabel('$\omega_t$ (eV)',fontsize=fontsize)
+        ax.set_xlabel(r'$\omega_t$ (eV)',fontsize=fontsize)
         ax.set_ylabel('$S_{nQ}^{('+'{}'.format(2*order+1)+')}$',fontsize=fontsize)
-        ax.legend(lines[::-1],['0Q','1Q','2Q','3Q','4Q'],title='Normalized')
+        if legend:
+            ax.legend(lines[::-1],['0Q','1Q','2Q','3Q','4Q'],title='Normalized')
         fig.tight_layout()
         if save:
             self.savefig('Integrated_comparison')
@@ -978,5 +1048,5 @@ class save_and_load_fits:
         self.fit_errors = arch['fit_errors']
 
 class analyze(visualize,modifiedSeparateOrders,save_and_load_fits):
-    def __init__(self,folder,*,root='auto'):
-        super().__init__(folder,root=root)
+    def __init__(self,folder,*,root='auto',tau_reflect = False):
+        super().__init__(folder,root=root,tau_reflect=tau_reflect)
