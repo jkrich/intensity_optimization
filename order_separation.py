@@ -205,26 +205,31 @@ intensity_dict = {'Intensity Cycling':intensity_cycling,
                  'Chebyshev':chebyshev_sampling}
 
 class OptimizeIntensities(SeparateOrders):
-    def __init__(self,f,f_series,noise):
+    def __init__(self,f,f_series,noise,I0=36/60):
         '''
-        f: function of intensity giving the exact signal.
-        f_series: function of order m and intensity, giving the contribution of the mth term in the expansion of f
+        f: function of intensity. Signal is f(I).
+        f_series:   function of order m and intensity, giving the contribution 
+                    of the mth term in the expansion of f, so f(I) = sum_m f_series(m,I)
+        noise:      dimensionless noise level (sigma/S_max)
+        I0:         Base intensity. Does not affect relative errors, but if absolute errors are used 
+                    (eg, in optimizatins for 2Q signals), the absolute scaling can matter.
         '''
         self.f = f
         self.f_series = f_series
         self.noise_floor = noise
         self.set_number_of_noise_realizations(1)
         self.sys_weight = 1
+        self.I0 = I0
 
     def extract_orders(self,intensities):
         '''Given input set of N intensities, take |intensities| and extract 
         the first N orders using self.invert for the van der Monde method'''
         intensities = np.abs(intensities)
-        I0 = np.mean(intensities)/10    
+        # I0 = np.mean(intensities)/10    
         # I0 = np.max(intensities)/4
-        I0 = 36/60 # just fix a value       #1/600 #set to 36/60 on 2025/4/1
+        # I0 = 36/60 # just fix a value       #1/600 #set to 36/60 on 2025/4/1
         self.set_intensities(intensities)
-        self.I0 = I0
+        # self.I0 = I0
         self.eval_intensities()
         self.add_noise(self.noise_floor)
         self.invert()
@@ -311,22 +316,29 @@ class OptimizeIntensities(SeparateOrders):
                                  bounds=[1E-15,2],optimization_cycles=1, verbose=False, x0=None):
         """Minimize random and systematic errors for the Vandermonde inversion procedure.
         Args:
-            number_of_orders (int) : number of orders for which you wish to minimize the error <= N
+            number_of_orders (int) : number of orders for which you wish to minimize the error. <= N
             N (int) : number of intensities to use
         Kwargs:
-            intensity_selection : 'any' runs a Nelder-Mead optimization over all N intensity values. three
-                other options run a 1D optimization over I_0, which determines all N intensity values via
-                the three sampling strategies included in intensity_dict, defined above this class. The 
-                options are : 'Linear Sampling', 'Intensity Cycling' and 'Chebyshev'.
-            bounds : bounds for I_0 for the 1D optimization procedure. This is ignored if intensity_selection
-                is 'any'
-            optimization_cycles : number of times to repeat the optimization procedure. This is ignored if intensity_selection
+            intensity_selection :   'any' runs a Nelder-Mead optimization over all N intensity values. 
+                                    three other options run a 1D optimization over I_0, which determines 
+                                    all N intensity values via the three sampling strategies included in intensity_dict, 
+                                    defined above this class. The options are : 
+                                    'Linear Sampling', 'Intensity Cycling' and 'Chebyshev'.
+            bounds [1e-15,2]:       bounds for I_0 for the 1D optimization procedure. 
+                                    Ignored if intensity_selection is 'any'
+            optimization_cycles (1):number of times to repeat the optimization procedure. 
+                                    Ignored if intensity_selection is 'any'.
+            verbose (False):        if True, print out optimization progress.
+            x0 (None):              initial guess for the optimization; default guess used if None.
         Returns: intensities, r_err, s_err, rms_err
             intensities : the N intensities that minimize the total error scaled with I_sat = 1
+            r_err : contributions of random error to the extracted orders
+            s_err : contributions of systematic (contamination) error to the extracted orders
+            rms_err : total RMS error from both sources
         """
         self.num = number_of_orders
         if N < self.num:
-            raise Exception('Cannot extract more orders than intensities')
+            raise ValueError('Cannot extract more orders than intensities')
         if intensity_selection == 'any':
             f = self.get_total_error
             x0 = np.arange(1,N+1)/N/4
