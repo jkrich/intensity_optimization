@@ -191,8 +191,8 @@ def optimize_nQ_intensities(
 
     I0 : float or None
         Reference intensity for the Vandermonde matrix (same units as I_sat).
-        For signals whose leading-order series term is zero (e.g. 2Q with the
-        Bessel model) this sets the scale for absolute rather than relative
+        For signals whose leading-order series term is zero (e.g. 2Q)
+        this sets the scale for absolute rather than relative
         errors.  Defaults to I_sat.
 
     fixed_intensities : array-like or None
@@ -207,7 +207,8 @@ def optimize_nQ_intensities(
     -------
     total_err : ndarray, shape (len(Ns), 1 + 3·len(ns))
         Columns: N, then total / random / systematic error for each n in ns.
-        Each error is divided by sqrt(min(N, M)).
+        Each error is divided by sqrt(min(N, M)), as given by Eq. 15 in
+        Krich et al JPCL 2025.
 
     optimal_I : ndarray, shape (len(Ns), len(ns), max(Ns))
         Optimal intensities in physical units (same as I_sat), zero-padded.
@@ -300,7 +301,7 @@ def _print_tables(total_err, optimal_I, err_by_order,
     if fixed_intensities is not None:
         print('Fixed intensities (no optimisation)')
     elif I_max is not None:
-        print(f'Optimised intensities, I_max = {I_max}')
+        print(f'Optimised intensities, I_max = {I_max:0.5g}')
     else:
         print('Optimised intensities, unbounded')
 
@@ -312,6 +313,7 @@ def _print_tables(total_err, optimal_I, err_by_order,
         + [f'{n}Q sys'  for n in ns]
     )
     fmts = ['1.0f'] + ['0.5f'] * (3 * len(ns))
+    print('\nTotal errors:')
     print(tabulate(total_err, headers=heads, floatfmt=fmts))
 
     # --- Intensity table ---
