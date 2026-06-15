@@ -181,7 +181,7 @@ def optimize_nQ_intensities(
         Number of perturbation orders to include in the error calculation.
 
     I_sat : float
-        Saturation intensity in any physical unit (e.g. nJ).
+        Saturation intensity in any unit (e.g. nJ or normalized).
         All output intensities are reported in the same unit.
 
     I_max : float or None
