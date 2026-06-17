@@ -1049,4 +1049,4 @@ class save_and_load_fits:
 
 class analyze(visualize,modifiedSeparateOrders,save_and_load_fits):
     def __init__(self,folder,*,root='auto',tau_reflect = False):
-        super().__init__(folder,root=root,tau_reflect=tau_reflect)
+        super().__init__(folder,root=root,tau_reflect=tau_reflect) 
